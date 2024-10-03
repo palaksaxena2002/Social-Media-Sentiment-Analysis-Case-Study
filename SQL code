@@ -1,0 +1,544 @@
+#BASIC LEVEL - SOCIAL MEDIA SENTIMENT ANALYSIS THROUGH SQL
+
+### 1. Total Positive and Negative Sentiments
+  -- Question: How many posts have positive and negative sentiments?
+   
+   SELECT 
+       sentiment, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY sentiment;
+  
+### 2. Top 5 Most Active Users
+  -- Question: Who are the top 5 users with the most posts?
+
+   SELECT 
+       username, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY username 
+   ORDER BY total_posts DESC 
+   LIMIT 5;
+  
+
+### 3. Posts Per Platform
+  -- Question: How many posts were made on each platform?
+
+   SELECT 
+       platform, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY platform;
+  
+
+### 4. Average Retweets and Likes for Positive vs. Negative Posts
+   -- Question: What is the average number of retweets and likes for positive and negative posts?
+ 
+   SELECT 
+       sentiment, 
+       AVG(count_of_retweets) AS avg_retweets, 
+       AVG(count_of_likes) AS avg_likes 
+   FROM social_media_posts 
+   GROUP BY sentiment;
+  
+
+### 5. Most Common Hashtags
+   -- Question: What are the most common hashtags used in the posts?
+  
+   SELECT 
+       hashtags, 
+       COUNT(*) AS hashtag_count 
+   FROM social_media_posts 
+   GROUP BY hashtags 
+   ORDER BY hashtag_count DESC 
+   LIMIT 10;
+
+
+### 6. Posts by Country
+   -- Question: How many posts were made from each country?
+ 
+   SELECT 
+       country, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY country;
+
+
+### 7. Sentiment Trends Over the Year
+   -- Question: How did the number of positive and negative posts change over the year?
+
+   SELECT 
+       year, 
+       sentiment, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY year, sentiment 
+   ORDER BY year;
+
+
+### 8. Sentiment Distribution by Platform
+ -- Question: What is the distribution of sentiment (positive/negative) across different platforms?
+  
+   SELECT 
+       platform, 
+       sentiment, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY platform, sentiment 
+   ORDER BY platform;
+ 
+### 9.Top 5 Countries by Total Likes
+   -- Question: Which 5 countries have the highest total number of likes?
+   
+   SELECT 
+       country, 
+       SUM(count_of_likes) AS total_likes 
+   FROM social_media_posts 
+   GROUP BY country 
+   ORDER BY total_likes DESC 
+   LIMIT 5;
+  
+
+### 10.Hourly Posting Activity
+   -- Question: How many posts were made during each hour of the day?
+
+   SELECT 
+       HOUR(TIMESTAMP_OF_POSTING) AS hour, 
+       COUNT(*) AS total_posts 
+   FROM social_media_posts 
+   GROUP BY hour 
+   ORDER BY hour;
+   
+
+##INTERMEDIATE LEVEL - SOCIAL MEDIA SENTIMENT ANALYSIS THROUGH SQL
+
+### 1.User Engagement by Platform
+   -- Question: Calculate the average number of likes and retweets per post for each platform. Which platform has 
+   -- the highest average engagement (likes + retweets)?
+
+   SELECT 
+       platform, 
+       AVG(count_of_likes) AS avg_likes, 
+       AVG(count_of_retweets) AS avg_retweets, 
+       (AVG(count_of_likes) + AVG(count_of_retweets)) AS avg_engagement
+   FROM social_media_posts
+   GROUP BY platform
+   ORDER BY avg_engagement DESC;
+
+
+### 2. Top Hashtags by Sentiment
+   -- Question: Identify the top 3 hashtags associated with positive and negative sentiments. 
+
+   SELECT 
+       sentiment, 
+       hashtags, 
+       COUNT(*) AS hashtag_count
+   FROM social_media_posts
+   WHERE sentiment IN ('positive', 'negative')
+   GROUP BY sentiment, hashtags
+   ORDER BY sentiment, hashtag_count DESC
+   LIMIT 3;
+
+
+### 3.User Posting Frequency
+   -- Question: Find the average number of posts per user per year. How many users post more than the average?
+
+   WITH user_posts_per_year AS (
+       SELECT 
+           username, 
+           year, 
+           COUNT(*) AS posts_per_year
+       FROM social_media_posts
+       GROUP BY username, year
+   )
+   SELECT 
+       AVG(posts_per_year) AS avg_posts_per_user_per_year
+   FROM user_posts_per_year;
+
+   SELECT 
+       COUNT(*) AS users_above_average
+   FROM (
+       SELECT 
+           username, 
+           COUNT(*) AS total_posts
+       FROM social_media_posts
+       GROUP BY username
+       HAVING total_posts > (
+           SELECT AVG(posts_per_year) 
+           FROM user_posts_per_year
+       )
+   ) AS active_users;
+
+
+### 4.Country-wise Sentiment Distribution
+ -- Question: Determine the percentage distribution of positive and negative sentiments for each country.
+  
+   SELECT 
+       country,
+       sentiment,
+       COUNT(*) AS sentiment_count,
+       ROUND((COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY country)), 2) AS sentiment_percentage
+   FROM social_media_posts
+   GROUP BY country, sentiment
+   ORDER BY country, sentiment_percentage DESC;
+
+
+### 5.Post Activity During Peak Hours
+   -- Question: Identify the peak hours (hours with the most posts) for each platform. What percentage of posts are made during these peak hours?
+
+   WITH hourly_post_counts AS (
+       SELECT 
+           platform, 
+           HOUR(timestamp_of_posting) AS hour, 
+           COUNT(*) AS total_posts
+       FROM social_media_posts
+       GROUP BY platform, hour
+   ),
+   peak_hours AS (
+       SELECT 
+           platform, 
+           hour, 
+           total_posts,
+           RANK() OVER (PARTITION BY platform ORDER BY total_posts DESC) AS ran_k
+       FROM hourly_post_counts
+   )
+   SELECT 
+       platform,
+       hour,
+       total_posts,
+       ROUND((total_posts * 100.0 / SUM(total_posts) OVER (PARTITION BY platform)), 2) AS peak_hour_percentage
+   FROM peak_hours
+   WHERE ran_k = 1;
+
+
+### 6.Sentiment Shift Over Time
+   -- Question: Analyze how the sentiment of posts has shifted over time. Calculate the percentage change in the number
+   -- of positive posts from one year to the next.
+
+   WITH yearly_sentiments AS (
+       SELECT 
+           year, 
+           sentiment, 
+           COUNT(*) AS total_posts
+       FROM social_media_posts
+       GROUP BY year, sentiment
+   )
+   SELECT 
+       current_year.year AS year,
+       (current_year.total_posts - previous_year.total_posts) * 100.0 / previous_year.total_posts AS percentage_change
+   FROM yearly_sentiments AS current_year
+   JOIN yearly_sentiments AS previous_year
+       ON current_year.year = previous_year.year + 1
+       AND current_year.sentiment = 'positive'
+       AND previous_year.sentiment = 'positive'
+   WHERE current_year.sentiment = 'positive';
+
+
+### 7. Correlation Between Sentiment and Engagement
+   -- Question: Determine if there is a correlation between the sentiment of posts and the level of engagement 
+   -- (likes + retweets) they receive.
+
+   SELECT 
+       sentiment, 
+       AVG(count_of_likes + count_of_retweets) AS avg_engagement
+   FROM social_media_posts
+   GROUP BY sentiment
+   ORDER BY avg_engagement DESC;
+
+
+### 8.Platform Preference by Country
+   -- Question: Identify the preferred platform (most posts) in each country.
+
+   SELECT 
+       country, 
+       platform, 
+       COUNT(*) AS total_posts,
+       RANK() OVER (PARTITION BY country ORDER BY COUNT(*) DESC) AS ran_k
+   FROM social_media_posts
+   GROUP BY country, platform
+   ORDER BY country, ran_k;
+
+
+### 9.Trending Hashtags Over the Years
+   -- Question: Track the top 5 trending hashtags each year.
+
+   SELECT 
+       year, 
+       hashtags, 
+       COUNT(*) AS hashtag_count,
+       RANK() OVER (PARTITION BY year ORDER BY COUNT(*) DESC) AS ran_k
+   FROM social_media_posts
+   GROUP BY year, hashtags
+   HAVING ran_k <= 5
+   ORDER BY year, ran_k;
+
+
+### 10.Sentiment Analysis by User Demographics
+   -- Question: Assuming a table with user demographics (age, gender, etc.), determine if there is any significant difference in sentiment between different demographic groups.
+
+   SELECT 
+       demographics.age_group, 
+       demographics.gender, 
+       posts.sentiment, 
+       COUNT(*) AS total_posts
+   FROM social_media_posts AS posts
+   JOIN user_demographics AS demographics
+       ON posts.username = demographics.username
+   GROUP BY demographics.age_group, demographics.gender, posts.sentiment
+   ORDER BY demographics.age_group, demographics.gender, posts.sentiment;
+   
+
+##HARD LEVEL - SOCIAL MEDIA SENTIMENT ANALYSIS THROUGH SQL
+
+### 1. Rolling Average of Sentiment Over Time
+   -- Question: Calculate the rolling 7-day average of positive sentiment posts for each platform.
+
+   WITH daily_sentiments AS (
+       SELECT 
+           platform,
+           DATE(timestamp_of_posting) AS post_date,
+           SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts
+       FROM social_media_posts
+       GROUP BY platform, post_date
+   )
+   SELECT 
+       platform,
+       post_date,
+       positive_posts,
+       AVG(positive_posts) OVER (
+           PARTITION BY platform 
+           ORDER BY post_date 
+           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+       ) AS rolling_avg_positive
+   FROM daily_sentiments
+   ORDER BY platform, post_date;
+
+
+### 2. Identifying Sudden Sentiment Shifts
+   -- Question: Identify days where there was a sudden (e.g., >50%) increase or decrease in the number of 
+   -- negative sentiment posts compared to the previous day, for each platform.
+
+   WITH daily_negative_posts AS (
+       SELECT 
+           platform,
+           DATE(timestamp_of_posting) AS post_date,
+           SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_posts
+       FROM social_media_posts
+       GROUP BY platform, post_date
+   ),
+   sentiment_shifts AS (
+       SELECT 
+           platform,
+           post_date,
+           negative_posts,
+           LAG(negative_posts, 1) OVER (PARTITION BY platform ORDER BY post_date) AS previous_day_negative_posts
+       FROM daily_negative_posts
+   )
+   SELECT 
+       platform,
+       post_date,
+       negative_posts,
+       previous_day_negative_posts,
+       ROUND(((negative_posts - previous_day_negative_posts) / previous_day_negative_posts) * 100, 2) AS percentage_change
+   FROM sentiment_shifts
+   WHERE ABS((negative_posts - previous_day_negative_posts) / previous_day_negative_posts) > 0.5
+   ORDER BY platform, post_date;
+
+
+### 3.Detecting Peak Sentiment Hours
+  -- Question: Find the hour of the day with the highest average number of positive sentiment posts for each platform 
+  -- over the last month.
+
+   WITH hourly_sentiment AS (
+       SELECT 
+           platform,
+           HOUR(timestamp_of_posting) AS hour,
+           SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts,
+           COUNT(*) AS total_posts
+       FROM social_media_posts
+       WHERE timestamp_of_posting >= CURDATE() - INTERVAL 1 MONTH
+       GROUP BY platform, hour
+   )
+   SELECT 
+       platform,
+       hour,
+       AVG(positive_posts) OVER (PARTITION BY platform ORDER BY positive_posts DESC) AS avg_positive_posts
+   FROM hourly_sentiment
+   ORDER BY platform, avg_positive_posts DESC;
+
+
+### 4. Top Influencers by Engagement
+   -- Question: Identify the top 3 influencers (users) on each platform, based on the total engagement (sum of likes and retweets) 
+   -- per post, over the past year.
+   
+   WITH user_engagement AS (
+       SELECT 
+           platform,
+           username,
+           SUM(count_of_likes + count_of_retweets) AS total_engagement,
+           COUNT(*) AS post_count,
+           SUM(count_of_likes + count_of_retweets) / COUNT(*) AS avg_engagement_per_post
+       FROM social_media_posts
+       WHERE timestamp_of_posting >= CURDATE() - INTERVAL 1 YEAR
+       GROUP BY platform, username
+   )
+   SELECT 
+       platform,
+       username,
+       total_engagement,
+       avg_engagement_per_post,
+       RANK() OVER (PARTITION BY platform ORDER BY avg_engagement_per_post DESC) AS ran_k
+   FROM user_engagement
+   WHERE ran_k <= 3
+   ORDER BY platform, ran_k;
+ 
+### 5.Sentiment Trends Across Countries
+   -- Question: Analyze the trend of positive sentiment across different countries over time, showing a running total of
+   -- positive posts per country.
+
+   WITH country_sentiment_trends AS (
+       SELECT 
+           country,
+           DATE(timestamp_of_posting) AS post_date,
+           SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts
+       FROM social_media_posts
+       GROUP BY country, post_date
+   )
+   SELECT 
+       country,
+       post_date,
+       positive_posts,
+       SUM(positive_posts) OVER (PARTITION BY country ORDER BY post_date) AS running_total_positive_posts
+   FROM country_sentiment_trends
+   ORDER BY country, post_date;
+
+### 6. Comparing Sentiment Across Platforms Over Time
+   -- Question: Compare the sentiment trends across different platforms, calculating the cumulative percentage of positive posts
+   -- over time.
+
+   WITH platform_sentiment AS (
+       SELECT 
+           platform,
+           DATE(timestamp_of_posting) AS post_date,
+           SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts,
+           COUNT(*) AS total_posts
+       FROM social_media_posts
+       GROUP BY platform, post_date
+   )
+   SELECT 
+       platform,
+       post_date,
+       positive_posts,
+       total_posts,
+       ROUND(SUM(positive_posts) OVER (PARTITION BY platform ORDER BY post_date) * 100.0 / SUM(total_posts) OVER (PARTITION BY platform ORDER BY post_date), 2) AS cumulative_positive_percentage
+   FROM platform_sentiment
+   ORDER BY platform, post_date;
+
+### 7.Peak Posting Times by Country
+   -- Question: For each country, identify the top 3 hours of the day with the highest average number of posts.
+
+   WITH hourly_post_counts AS (
+       SELECT 
+           country,
+           HOUR(timestamp_of_posting) AS hour,
+           COUNT(*) AS post_count
+       FROM social_media_posts
+       GROUP BY country, hour
+   )
+   SELECT 
+       country,
+       hour,
+       post_count,
+       RANK() OVER (PARTITION BY country ORDER BY post_count DESC) AS ran_k
+   FROM hourly_post_counts
+   WHERE ran_k <= 3
+   ORDER BY country, ran_k;
+
+### 8. Daily Sentiment Variance
+--  Question: Calculate the variance of daily sentiment scores (positive vs. negative) for each platform.
+
+   WITH daily_sentiment_scores AS (
+       SELECT 
+           platform,
+           DATE(timestamp_of_posting) AS post_date,
+           SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE -1 END) AS sentiment_score
+       FROM social_media_posts
+       GROUP BY platform, post_date
+   )
+   SELECT 
+       platform,
+       VARIANCE(sentiment_score) AS daily_sentiment_variance
+   FROM daily_sentiment_scores
+   GROUP BY platform
+   ORDER BY daily_sentiment_variance DESC;
+
+### 9. Year-over-Year Growth in Engagement
+   -- Question: Calculate the year-over-year growth in total engagement (likes + retweets) for each platform.
+
+   WITH yearly_engagement AS (
+       SELECT 
+           platform,
+           YEAR(timestamp_of_posting) AS year,
+           SUM(count_of_likes + count_of_retweets) AS total_engagement
+       FROM social_media_posts
+       GROUP BY platform, year
+   )
+   SELECT 
+       platform,
+       year,
+       total_engagement,
+       LAG(total_engagement, 1) OVER (PARTITION BY platform ORDER BY year) AS previous_year_engagement,
+       ROUND((total_engagement - previous_year_engagement) * 100.0 / previous_year_engagement, 2) AS year_over_year_growth
+   FROM yearly_engagement
+   WHERE previous_year_engagement IS NOT NULL
+   ORDER BY platform, year;
+
+
+### 10. User Retention Analysis
+  -- Question: Identify users who posted in the previous year but did not post in the current year. Calculate the
+  -- retention rate for each platform.
+
+   WITH user_activity AS (
+       SELECT 
+           platform,
+           username,
+           YEAR(timestamp_of_posting) AS year,
+           COUNT(*) AS post_count
+       FROM social_media_posts
+       GROUP BY platform, username, year
+   ),
+   retained_users AS (
+       SELECT 
+           current_year.platform,
+           current_year.username,
+           current_year.year AS current_year,
+           previous_year.year AS previous_year
+       FROM user_activity current_year
+       LEFT JOIN user_activity previous_year
+           ON current_year.platform = previous_year.platform
+           AND current_year.username = previous_year.username
+           AND previous_year.year = current_year.year - 1
+       WHERE current_year.year = YEAR(CURDATE())
+   ),
+   retention_stats AS (
+       SELECT 
+           platform,
+           COUNT(DISTINCT username) AS total_users_current_year,
+           COUNT(DISTINCT CASE WHEN previous_year IS NOT NULL THEN username END) AS retained_users
+       FROM retained_users
+       GROUP BY platform
+   )
+   SELECT 
+       platform,
+       total_users_current_year,
+       retained_users,
+       ROUND(retained_users * 100.0 / total_users_current_year, 2) AS retention_rate
+   FROM retention_stats
+   ORDER BY retention_rate DESC;
+
+
+
+
+
+
+
